@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>الإعدادات — نظام الأذان</title>
+<link rel="stylesheet" href="/static/css/style.css">
+<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@300;400;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+<div class="app-wrapper">
+  <nav class="sidebar">
+    <div class="sidebar-logo">
+      <div class="mosque-icon">🕌</div>
+      <span>نظام الأذان</span>
+    </div>
+    <ul class="nav-links">
+      <li><a href="/">🏠 لوحة التحكم</a></li>
+      <li class="active"><a href="/settings">⚙️ الإعدادات</a></li>
+      <li><a href="/logs">📋 السجلات</a></li>
+    </ul>
+  </nav>
+
+  <main class="main-content">
+    <header class="topbar">
+      <h1 class="page-title">⚙️ الإعدادات</h1>
+    </header>
+
+    <div class="settings-container">
+
+      <!-- General Settings -->
+      <div class="settings-card">
+        <h3 class="card-title">🌍 الإعدادات العامة</h3>
+        <div class="form-grid">
+          <div class="form-group">
+            <label>المدينة</label>
+            <select id="citySelect" onchange="updateCityPreview()">
+              <option value="Riyadh" {% if settings.city == 'Riyadh' %}selected{% endif %}>الرياض</option>
+              <option value="Jeddah" {% if settings.city == 'Jeddah' %}selected{% endif %}>جدة</option>
+              <option value="Mecca" {% if settings.city == 'Mecca' %}selected{% endif %}>مكة المكرمة</option>
+              <option value="Medina" {% if settings.city == 'Medina' %}selected{% endif %}>المدينة المنورة</option>
+              <option value="Dammam" {% if settings.city == 'Dammam' %}selected{% endif %}>الدمام</option>
+              <option value="Taif" {% if settings.city == 'Taif' %}selected{% endif %}>الطائف</option>
+              <option value="Tabuk" {% if settings.city == 'Tabuk' %}selected{% endif %}>تبوك</option>
+              <option value="Buraydah" {% if settings.city == 'Buraydah' %}selected{% endif %}>بريدة</option>
+              <option value="Khamis Mushait" {% if settings.city == 'Khamis Mushait' %}selected{% endif %}>خميس مشيط</option>
+              <option value="Abha" {% if settings.city == 'Abha' %}selected{% endif %}>أبها</option>
+              <option value="Hafar Al-Batin" {% if settings.city == 'Hafar Al-Batin' %}selected{% endif %}>حفر الباطن</option>
+              <option value="Jubail" {% if settings.city == 'Jubail' %}selected{% endif %}>الجبيل</option>
+              <option value="Al Khobar" {% if settings.city == 'Al Khobar' %}selected{% endif %}>الخبر</option>
+              <option value="Yanbu" {% if settings.city == 'Yanbu' %}selected{% endif %}>ينبع</option>
+              <option value="Al Hufuf" {% if settings.city == 'Al Hufuf' %}selected{% endif %}>الأحساء</option>
+              <option value="Najran" {% if settings.city == 'Najran' %}selected{% endif %}>نجران</option>
+              <option value="Jazan" {% if settings.city == 'Jazan' %}selected{% endif %}>جازان</option>
+              <option value="Hail" {% if settings.city == 'Hail' %}selected{% endif %}>حائل</option>
+              <option value="Al Bahah" {% if settings.city == 'Al Bahah' %}selected{% endif %}>الباحة</option>
+              <option value="Skaka" {% if settings.city == 'Skaka' %}selected{% endif %}>سكاكا</option>
+              <option value="Arar" {% if settings.city == 'Arar' %}selected{% endif %}>عرعر</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>المنطقة الزمنية</label>
+            <select id="timezoneSelect">
+              <option value="Asia/Riyadh" {% if settings.timezone == 'Asia/Riyadh' %}selected{% endif %}>توقيت الرياض (UTC+3)</option>
+              <option value="Asia/Dubai" {% if settings.timezone == 'Asia/Dubai' %}selected{% endif %}>توقيت دبي (UTC+4)</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>طريقة الحساب</label>
+            <select id="methodSelect">
+              <option value="4" {% if settings.calculation_method == '4' %}selected{% endif %}>أم القرى — المملكة العربية السعودية</option>
+              <option value="2" {% if settings.calculation_method == '2' %}selected{% endif %}>الرابطة الإسلامية العالمية</option>
+              <option value="3" {% if settings.calculation_method == '3' %}selected{% endif %}>رابطة عالم الإسلام</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>التنبيه قبل الأذان (دقائق)</label>
+            <input type="number" id="notifBefore" value="{{ settings.notification_before or 5 }}" min="0" max="30">
+          </div>
+        </div>
+        <button class="btn-primary" onclick="saveGeneralSettings()">💾 حفظ الإعدادات</button>
+      </div>
+
+      <!-- Prayer Adjustments -->
+      <div class="settings-card">
+        <h3 class="card-title">🕐 تعديل مواقيت الصلاة</h3>
+        <p class="card-desc">يمكنك تعديل وقت كل صلاة بزيادة أو إنقاص عدد الدقائق عن الوقت المحسوب، وتحديد وقت الإقامة.</p>
+        <div class="adjustments-table">
+          <div class="adj-header">
+            <span>الصلاة</span>
+            <span>تعديل الوقت (دقيقة)</span>
+            <span>وقت الإقامة (دقيقة)</span>
+            <span>تفعيل</span>
+          </div>
+          {% for prayer in prayer_order %}
+          {% set adj = adjustments.get(prayer, {}) %}
+          <div class="adj-row">
+            <span class="adj-prayer-name">{{ prayer_names[prayer] }}</span>
+            <div class="adj-control">
+              <button onclick="changeAdj('{{ prayer }}', 'adjustment', -1)">−</button>
+              <input type="number" id="adj-{{ prayer }}" value="{{ adj.get('adjustment_minutes', 0) }}" min="-60" max="60">
+              <button onclick="changeAdj('{{ prayer }}', 'adjustment', 1)">+</button>
+            </div>
+            <div class="adj-control">
+              <button onclick="changeAdj('{{ prayer }}', 'iqama', -1)">−</button>
+              <input type="number" id="iqama-{{ prayer }}" value="{{ adj.get('iqama_minutes', 20) }}" min="0" max="60">
+              <button onclick="changeAdj('{{ prayer }}', 'iqama', 1)">+</button>
+            </div>
+            <label class="toggle-switch">
+              <input type="checkbox" id="enabled-{{ prayer }}" {% if adj.get('enabled', 1) %}checked{% endif %}>
+              <span class="toggle-slider"></span>
+            </label>
+          </div>
+          {% endfor %}
+        </div>
+        <button class="btn-primary" onclick="saveAdjustments()">💾 حفظ التعديلات</button>
+      </div>
+
+      <!-- Audio Files -->
+      <div class="settings-card">
+        <h3 class="card-title">🔊 ملفات الأذان والإقامة</h3>
+        <p class="card-desc">ارفع ملفًا صوتيًا للأذان أو الإقامة لكل صلاة. الصيغ المدعومة: MP3, M4A, WAV</p>
+        {% for prayer in prayer_order %}
+        <div class="audio-row">
+          <div class="audio-prayer-name">{{ prayer_names[prayer] }}</div>
+          <div class="audio-slots">
+            <div class="audio-slot">
+              <span class="slot-label">أذان</span>
+              {% set adhan_file = files.get(prayer + '_adhan') %}
+              {% if adhan_file %}
+              <span class="file-name">✅ {{ adhan_file.original_name }}</span>
+              <button class="btn-sm btn-play" onclick="playAudio('/static/uploads/{{ adhan_file.filename }}')">▶ تشغيل</button>
+              <button class="btn-sm btn-del" onclick="deleteFile({{ adhan_file.id }})">🗑</button>
+              {% else %}
+              <span class="no-file">لا يوجد ملف</span>
+              {% endif %}
+              <label class="btn-sm btn-upload">
+                📂 رفع ملف
+                <input type="file" accept=".mp3,.m4a,.wav" onchange="uploadFile(this, '{{ prayer }}', 'adhan')" hidden>
+              </label>
+            </div>
+            <div class="audio-slot">
+              <span class="slot-label">إقامة</span>
+              {% set iqama_file = files.get(prayer + '_iqama') %}
+              {% if iqama_file %}
+              <span class="file-name">✅ {{ iqama_file.original_name }}</span>
+              <button class="btn-sm btn-play" onclick="playAudio('/static/uploads/{{ iqama_file.filename }}')">▶ تشغيل</button>
+              <button class="btn-sm btn-del" onclick="deleteFile({{ iqama_file.id }})">🗑</button>
+              {% else %}
+              <span class="no-file">لا يوجد ملف</span>
+              {% endif %}
+              <label class="btn-sm btn-upload">
+                📂 رفع ملف
+                <input type="file" accept=".mp3,.m4a,.wav" onchange="uploadFile(this, '{{ prayer }}', 'iqama')" hidden>
+              </label>
+            </div>
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+
+      <!-- Backup -->
+      <div class="settings-card">
+        <h3 class="card-title">💾 النسخ الاحتياطي</h3>
+        <div class="backup-actions">
+          <a href="/api/backup" class="btn-secondary">⬇️ تنزيل نسخة احتياطية</a>
+          <button class="btn-secondary" onclick="clearCache()">🗑️ مسح كاش المواقيت</button>
+        </div>
+      </div>
+
+    </div>
+  </main>
+</div>
+
+<audio id="adhanPlayer" preload="none"></audio>
+<div class="toast" id="toast"></div>
+<script src="/static/js/settings.js"></script>
+</body>
+</html>

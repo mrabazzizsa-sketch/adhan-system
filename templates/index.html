@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>نظام الأذان الآلي</title>
+<link rel="stylesheet" href="/static/css/style.css">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Naskh+Arabic:wght@400;500;600;700&family=Cairo:wght@300;400;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+<div class="app-wrapper">
+
+  <!-- Sidebar -->
+  <nav class="sidebar">
+    <div class="sidebar-logo">
+      <div class="mosque-icon">🕌</div>
+      <span>نظام الأذان</span>
+    </div>
+    <ul class="nav-links">
+      <li class="active"><a href="/">🏠 لوحة التحكم</a></li>
+      <li><a href="/settings">⚙️ الإعدادات</a></li>
+      <li><a href="/logs">📋 السجلات</a></li>
+    </ul>
+    <div class="sidebar-footer">
+      <div class="system-badge" id="systemBadge">
+        <span class="status-dot {% if system_enabled == '1' %}active{% endif %}"></span>
+        <span>{% if system_enabled == '1' %}النظام يعمل{% else %}النظام متوقف{% endif %}</span>
+      </div>
+    </div>
+  </nav>
+
+  <!-- Main Content -->
+  <main class="main-content">
+    <!-- Top bar -->
+    <header class="topbar">
+      <div class="topbar-date">
+        <div class="hijri-date" id="hijriDate">{{ hijri }}</div>
+        <div class="gregorian-date" id="gregorianDate">{{ gregorian }}</div>
+      </div>
+      <div class="topbar-clock">
+        <div class="clock" id="liveClock">{{ current_time }}</div>
+        <div class="city-name">📍 {{ city }}</div>
+      </div>
+      <div class="topbar-actions">
+        <button class="btn-toggle {% if system_enabled == '1' %}active{% endif %}" id="toggleBtn" onclick="toggleSystem()">
+          {% if system_enabled == '1' %}⏸ إيقاف النظام{% else %}▶ تشغيل النظام{% endif %}
+        </button>
+      </div>
+    </header>
+
+    <!-- Next Prayer Card -->
+    <section class="next-prayer-section">
+      <div class="next-prayer-card" id="nextPrayerCard">
+        <div class="next-label">الصلاة القادمة</div>
+        <div class="next-prayer-name" id="nextPrayerName">
+          {% if next_prayer %}{{ next_prayer.name }}{% endif %}
+        </div>
+        <div class="next-prayer-time" id="nextPrayerTime">
+          {% if next_prayer %}{{ next_prayer.time }}{% endif %}
+        </div>
+        <div class="countdown" id="countdown">
+          {% if next_prayer %}
+            <span id="countdownHours">{{ '%02d'|format(next_prayer.remaining_hours) }}</span>:<span id="countdownMins">{{ '%02d'|format(next_prayer.remaining_minutes) }}</span>:<span id="countdownSecs">00</span>
+          {% endif %}
+        </div>
+        <div class="progress-ring-wrap">
+          <svg class="progress-ring" width="120" height="120">
+            <circle class="ring-bg" cx="60" cy="60" r="52"/>
+            <circle class="ring-fill" id="ringFill" cx="60" cy="60" r="52" stroke-dasharray="327" stroke-dashoffset="327"/>
+          </svg>
+          <div class="ring-icon">🕐</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Prayer Times Grid -->
+    <section class="prayers-section">
+      <h2 class="section-title">مواقيت الصلوات — اليوم</h2>
+      <div class="prayers-grid">
+        {% for prayer in prayer_order %}
+        <div class="prayer-card {% if next_prayer and next_prayer.prayer == prayer %}next{% endif %}" id="card-{{ prayer }}">
+          <div class="prayer-icon">
+            {% if prayer == 'fajr' %}🌅
+            {% elif prayer == 'dhuhr' %}☀️
+            {% elif prayer == 'asr' %}🌤️
+            {% elif prayer == 'maghrib' %}🌇
+            {% elif prayer == 'isha' %}🌙
+            {% endif %}
+          </div>
+          <div class="prayer-info">
+            <div class="prayer-name-ar">{{ prayer_names[prayer] }}</div>
+            <div class="prayer-time-display" id="time-{{ prayer }}">{{ times.get(prayer, '--:--') }}</div>
+          </div>
+          <button class="btn-test" onclick="testAdhan('{{ prayer }}')" title="اختبار الأذان">▶</button>
+        </div>
+        {% endfor %}
+      </div>
+    </section>
+
+    <!-- Volume + Quick Actions -->
+    <section class="controls-section">
+      <div class="volume-card">
+        <label>🔊 مستوى الصوت</label>
+        <input type="range" id="volumeSlider" min="0" max="100" value="{{ volume }}"
+               oninput="updateVolume(this.value)">
+        <span id="volumeVal">{{ volume }}%</span>
+      </div>
+      <div class="quick-actions">
+        <button class="btn-action" onclick="refreshTimes()">🔄 تحديث المواقيت</button>
+        <a href="/settings" class="btn-action">⚙️ الإعدادات</a>
+        <a href="/logs" class="btn-action">📋 السجلات</a>
+      </div>
+    </section>
+
+  </main>
+</div>
+
+<!-- Audio Player (hidden) -->
+<audio id="adhanPlayer" preload="none"></audio>
+
+<!-- Notification Toast -->
+<div class="toast" id="toast"></div>
+
+<script src="/static/js/main.js"></script>
+<script>
+  // Pass Flask data to JS
+  window.ADHAN = {
+    prayerOrder: {{ prayer_order | tojson }},
+    prayerNames: {{ prayer_names | tojson }},
+    nextPrayer: {{ next_prayer | tojson if next_prayer else 'null' }},
+    volume: {{ get_setting('volume', '80') }},
+  };
+</script>
+</body>
+</html>

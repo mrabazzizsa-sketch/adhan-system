@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>السجلات — نظام الأذان</title>
+<link rel="stylesheet" href="/static/css/style.css">
+<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@300;400;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+<div class="app-wrapper">
+  <nav class="sidebar">
+    <div class="sidebar-logo">
+      <div class="mosque-icon">🕌</div>
+      <span>نظام الأذان</span>
+    </div>
+    <ul class="nav-links">
+      <li><a href="/">🏠 لوحة التحكم</a></li>
+      <li><a href="/settings">⚙️ الإعدادات</a></li>
+      <li class="active"><a href="/logs">📋 السجلات</a></li>
+    </ul>
+  </nav>
+  <main class="main-content">
+    <header class="topbar">
+      <h1 class="page-title">📋 سجل الأحداث</h1>
+      <button class="btn-danger" onclick="clearLogs()">🗑️ مسح السجلات</button>
+    </header>
+    <div class="logs-container">
+      {% if logs %}
+        {% for log in logs %}
+        <div class="log-entry log-{{ log.event_type | lower }}">
+          <span class="log-type">
+            {% if log.event_type == 'ADHAN' %}🔔
+            {% elif log.event_type == 'IQAMA' %}📢
+            {% elif log.event_type == 'NOTIFICATION' %}🔔
+            {% elif log.event_type == 'UPLOAD' %}📁
+            {% elif log.event_type == 'SETTINGS' %}⚙️
+            {% elif log.event_type == 'SYSTEM' %}🔧
+            {% elif log.event_type == 'TEST' %}🧪
+            {% else %}📝
+            {% endif %}
+            {{ log.event_type }}
+          </span>
+          <span class="log-message">{{ log.message }}</span>
+          <span class="log-time">{{ log.created_at }}</span>
+        </div>
+        {% endfor %}
+      {% else %}
+        <div class="empty-logs">لا توجد سجلات بعد</div>
+      {% endif %}
+    </div>
+  </main>
+</div>
+<div class="toast" id="toast"></div>
+<script>
+function clearLogs() {
+  if (!confirm('هل تريد مسح جميع السجلات؟')) return;
+  fetch('/api/clear-logs', {method:'POST'}).then(()=>location.reload());
+}
+function showToast(msg, type='success') {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.className = 'toast show ' + type;
+  setTimeout(()=>t.className='toast', 3000);
+}
+</script>
+</body>
+</html>
