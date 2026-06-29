@@ -3,9 +3,9 @@
 const player = document.getElementById('adhanPlayer');
 let volume = window.ADHAN?.volume ?? 80;
 let countdownSeconds = window.ADHAN?.nextPrayer?.remaining_seconds ?? 0;
-let systemEnabled = true;
+const playedToday = new Set();
 
-// ─── Clock & Countdown ────────────────────────────────────────────────
+// ─── Clock ────────────────────────────────────────────────────────────
 
 function startClock() {
   setInterval(() => {
@@ -13,6 +13,7 @@ function startClock() {
     const h = String(now.getHours()).padStart(2, '0');
     const m = String(now.getMinutes()).padStart(2, '0');
     const s = String(now.getSeconds()).padStart(2, '0');
+
     const el = document.getElementById('liveClock');
     if (el) el.textContent = `${h}:${m}:${s}`;
 
@@ -20,11 +21,16 @@ function startClock() {
     if (countdownSeconds > 0) {
       countdownSeconds--;
       updateCountdownDisplay();
-    } else if (countdownSeconds === 0) {
-      refreshData();
+    }
+
+    // Check adhan every minute at :00 seconds
+    if (s === '00') {
+      checkAdhanNow(`${h}:${m}`);
     }
   }, 1000);
 }
+
+// ─── Countdown ────────────────────────────────────────────────────────
 
 function updateCountdownDisplay() {
   const h = Math.floor(countdownSeconds / 3600);
@@ -42,82 +48,77 @@ function updateCountdownDisplay() {
 function updateProgressRing() {
   const ring = document.getElementById('ringFill');
   if (!ring) return;
-  // Assume average gap between prayers is ~3 hours (10800s)
   const MAX = 10800;
   const progress = Math.max(0, Math.min(1, 1 - countdownSeconds / MAX));
-  const circumference = 327;
-  ring.style.strokeDashoffset = circumference * (1 - progress);
+  ring.style.strokeDashoffset = 327 * (1 - progress);
 }
 
-// ─── Data Refresh ─────────────────────────────────────────────────────
+// ─── Adhan Check ──────────────────────────────────────────────────────
 
-let lastRefresh = Date.now();
-function refreshData() {
-  // Throttle
-  if (Date.now() - lastRefresh < 30000) return;
-  lastRefresh = Date.now();
+function checkAdhanNow(timeStr) {
+  const today = new Date().toISOString().split('T')[0];
 
+  // Get latest times from API
   fetch('/api/prayer-times')
     .then(r => r.json())
     .then(data => {
-      // Update prayer times
-      window.ADHAN.prayerOrder.forEach(p => {
-        const el = document.getElementById(`time-${p}`);
-        if (el && data.times[p]) el.textContent = data.times[p];
-        const card = document.getElementById(`card-${p}`);
-        if (card) {
-          card.classList.remove('next');
-          if (data.next_prayer && data.next_prayer.prayer === p) {
-            card.classList.add('next');
-          }
+      if (!data.system_enabled) return;
+
+      window.ADHAN.prayerOrder.forEach(prayer => {
+        const prayerTime = data.times[prayer];
+        if (!prayerTime) return;
+
+        const key = `${today}_${prayer}`;
+
+        // Notify 5 min before
+        const [ph, pm] = prayerTime.split(':').map(Number);
+        const prayerTotalMin = ph * 60 + pm;
+        const nowTotalMin = parseInt(timeStr.split(':')[0]) * 60 + parseInt(timeStr.split(':')[1]);
+
+        if (prayerTotalMin - nowTotalMin === 5 && !playedToday.has(`${key}_notif`)) {
+          playedToday.add(`${key}_notif`);
+          showToast(`🔔 سيحين أذان ${window.ADHAN.prayerNames[prayer]} بعد 5 دقائق`);
+        }
+
+        // Play adhan exactly at prayer time
+        if (prayerTime === timeStr && !playedToday.has(key)) {
+          playedToday.add(key);
+          playAdhan(prayer, 'adhan');
+          showToast(`🕌 حان وقت صلاة ${window.ADHAN.prayerNames[prayer]}`);
+          showNotification(`حان وقت صلاة ${window.ADHAN.prayerNames[prayer]}`);
         }
       });
 
-      // Update next prayer
+      // Update next prayer countdown
       if (data.next_prayer) {
-        const np = data.next_prayer;
-        countdownSeconds = np.remaining_seconds;
+        countdownSeconds = data.next_prayer.remaining_seconds;
         const nameEl = document.getElementById('nextPrayerName');
         const timeEl = document.getElementById('nextPrayerTime');
-        if (nameEl) nameEl.textContent = np.name;
-        if (timeEl) timeEl.textContent = np.time;
+        if (nameEl) nameEl.textContent = data.next_prayer.name;
+        if (timeEl) timeEl.textContent = data.next_prayer.time;
+
+        // Update highlighted card
+        window.ADHAN.prayerOrder.forEach(p => {
+          const card = document.getElementById(`card-${p}`);
+          if (card) {
+            card.classList.toggle('next', data.next_prayer.prayer === p);
+          }
+        });
       }
 
-      // Update dates
+      // Update prayer times display
+      window.ADHAN.prayerOrder.forEach(p => {
+        const el = document.getElementById(`time-${p}`);
+        if (el && data.times[p]) el.textContent = data.times[p];
+      });
+
+      // Update hijri date
       if (data.hijri) {
         const hEl = document.getElementById('hijriDate');
         if (hEl) hEl.textContent = data.hijri;
       }
-
-      // Check if should play adhan
-      checkAdhanTrigger(data);
     })
-    .catch(err => console.warn('Refresh failed:', err));
-}
-
-// Refresh every 30 seconds
-setInterval(refreshData, 30000);
-
-// ─── Adhan Trigger (client-side backup) ──────────────────────────────
-
-const playedToday = new Set();
-
-function checkAdhanTrigger(data) {
-  if (!data.system_enabled) return;
-  const now = new Date();
-  const timeStr = `${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`;
-  const today = now.toISOString().split('T')[0];
-
-  window.ADHAN.prayerOrder.forEach(prayer => {
-    const prayerTime = data.times[prayer];
-    if (!prayerTime) return;
-    const key = `${today}_${prayer}`;
-    if (prayerTime === timeStr && !playedToday.has(key)) {
-      playedToday.add(key);
-      playAdhan(prayer, 'adhan');
-      showNotification(`حان وقت صلاة ${window.ADHAN.prayerNames[prayer]}`);
-    }
-  });
+    .catch(err => console.warn('API error:', err));
 }
 
 // ─── Adhan Playback ───────────────────────────────────────────────────
@@ -129,7 +130,10 @@ function playAdhan(prayer, type = 'adhan') {
       if (data.success) {
         player.src = data.url;
         player.volume = volume / 100;
-        player.play().catch(e => console.warn('Audio play failed:', e));
+        player.play().catch(e => {
+          console.warn('Audio play failed:', e);
+          showToast('⚠️ تعذّر تشغيل الصوت تلقائياً — تأكد من تفاعلك مع الصفحة أولاً', 'warning');
+        });
       }
     });
 }
@@ -159,7 +163,6 @@ function updateVolume(val) {
   volume = parseInt(val);
   document.getElementById('volumeVal').textContent = val + '%';
   player.volume = volume / 100;
-  // Save
   fetch('/api/save-settings', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -176,7 +179,6 @@ function toggleSystem() {
       const btn = document.getElementById('toggleBtn');
       const badge = document.getElementById('systemBadge');
       const dot = badge?.querySelector('.status-dot');
-      systemEnabled = data.enabled;
       if (data.enabled) {
         btn.textContent = '⏸ إيقاف النظام';
         btn.classList.add('active');
@@ -193,7 +195,7 @@ function toggleSystem() {
     });
 }
 
-// ─── Refresh Times ────────────────────────────────────────────────────
+// ─── Refresh ──────────────────────────────────────────────────────────
 
 function refreshTimes() {
   showToast('⌛ جاري تحديث المواقيت...');
@@ -202,8 +204,7 @@ function refreshTimes() {
     .then(data => {
       if (data.success) {
         showToast('✅ تم تحديث مواقيت الصلاة');
-        lastRefresh = 0;
-        refreshData();
+        checkAdhanNow(new Date().toTimeString().slice(0,5));
       } else {
         showToast('تعذّر الاتصال بالخادم', 'error');
       }
@@ -214,9 +215,8 @@ function refreshTimes() {
 
 function showNotification(text) {
   if ('Notification' in window && Notification.permission === 'granted') {
-    new Notification('🕌 نظام الأذان', { body: text, icon: '/static/mosque.png' });
+    new Notification('🕌 نظام الأذان', { body: text });
   }
-  showToast('🔔 ' + text);
 }
 
 function requestNotificationPermission() {
@@ -231,7 +231,7 @@ function showToast(msg, type = 'success') {
   const t = document.getElementById('toast');
   t.textContent = msg;
   t.className = 'toast show ' + type;
-  setTimeout(() => { t.className = 'toast'; }, 3500);
+  setTimeout(() => { t.className = 'toast'; }, 4000);
 }
 
 // ─── Init ─────────────────────────────────────────────────────────────
@@ -242,10 +242,14 @@ document.addEventListener('DOMContentLoaded', () => {
   updateProgressRing();
   requestNotificationPermission();
 
-  // Set volume slider
+  // Set volume
   const vs = document.getElementById('volumeSlider');
   if (vs) {
     vs.value = volume;
     player.volume = volume / 100;
   }
+
+  // Run a check immediately on load
+  const now = new Date();
+  checkAdhanNow(`${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`);
 });
