@@ -129,7 +129,7 @@
     prayerOrder: {{ prayer_order | tojson }},
     prayerNames: {{ prayer_names | tojson }},
     nextPrayer: {{ next_prayer | tojson if next_prayer else 'null' }},
-    volume: {{ get_setting('volume', '80') }},
+    volume: {{ 80 }},
   };
 </script>
 </body>
