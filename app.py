@@ -463,6 +463,16 @@ def refresh_times():
     times = fetch_prayer_times(today)
     return jsonify({'success': times is not None, 'times': get_adjusted_times(times) if times else {}})
 
+_db_initialized = False
+
+@app.before_request
+def ensure_db():
+    global _db_initialized
+    if not _db_initialized:
+        init_db()
+        start_scheduler()
+        _db_initialized = True
+
 if __name__ == '__main__':
     init_db()
     start_scheduler()
